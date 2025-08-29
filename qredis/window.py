@@ -1,5 +1,6 @@
 import os
 import logging
+from urllib.parse import urlparse, unquote
 
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QIcon
@@ -14,6 +15,38 @@ from .dialog import AboutDialog, OpenRedisDialog
 
 
 _redis_icon = os.path.join(os.path.dirname(__file__), "images", "redis_logo.png")
+
+
+def _parse_redis_url(url):
+    """Parse a redis:// or rediss:// or unix:// URL into redis-py kwargs.
+
+    Supports username/password, host, port, db and unix socket URLs.
+    """
+    if not url:
+        return {}
+    u = urlparse(url)
+    kwargs = {}
+    scheme = (u.scheme or '').lower()
+    if scheme == 'unix':
+        # unix:///path/to/socket
+        if u.path:
+            kwargs['unix_socket_path'] = u.path
+    else:
+        if u.hostname:
+            kwargs['host'] = u.hostname
+        if u.port:
+            kwargs['port'] = u.port
+        if u.path and len(u.path) > 1:
+            try:
+                kwargs['db'] = int(u.path.lstrip('/'))
+            except Exception:
+                pass
+        if u.username:
+            kwargs['username'] = unquote(u.username)
+        if u.password:
+            kwargs['password'] = unquote(u.password)
+        # NOTE: TLS (rediss) would require extra kwargs; not handled here.
+    return kwargs
 
 
 @ui_loadable
@@ -80,6 +113,7 @@ def main():
     parser.add_argument("--name", default="qredis", help="Client name")
     parser.add_argument("-f", "--key-filter", default="*", help="Key filter")
     parser.add_argument("--key-split", default=".:", help="Key splitter")
+    parser.add_argument("--redis-url", help="Redis connection URL (overrides host/port/sock/db)")
     parser.add_argument(
         "--log-level",
         default="WARNING",
@@ -92,21 +126,40 @@ def main():
     level = getattr(logging, args.log_level.upper())
     logging.basicConfig(format=fmt, level=level)
 
-    kwargs = dict(client_name=args.name)
-    if args.host is not None:
-        kwargs["host"] = args.host
-    if args.port is not None:
-        kwargs["port"] = args.port
-    if args.sock is not None:
-        kwargs["unix_socket_path"] = args.sock
-    if args.db is not None:
-        kwargs["db"] = args.db
+    # Build connection options
     opts = dict(filter=args.key_filter, split_by=args.key_split)
+
+    # Prefer explicit flag, then environment variable, then CLI tuple
+    redis_url = args.redis_url or os.environ.get("REDIS_URL")
+
     application = QApplication(sys.argv)
     window = RedisWindow()
-    if len(kwargs) > 1:
-        r = QRedis(**kwargs)
-        window.add_redis_panel(r, opts)
+
+    if redis_url:
+        kwargs = _parse_redis_url(redis_url)
+        kwargs["client_name"] = args.name
+        try:
+            r = QRedis(**kwargs)
+            window.add_redis_panel(r, opts)
+        except Exception:
+            logging.exception("Failed to connect using REDIS_URL/--redis-url: %s", redis_url)
+    else:
+        kwargs = dict(client_name=args.name)
+        if args.host is not None:
+            kwargs["host"] = args.host
+        if args.port is not None:
+            kwargs["port"] = args.port
+        if args.sock is not None:
+            kwargs["unix_socket_path"] = args.sock
+        if args.db is not None:
+            kwargs["db"] = args.db
+        if len(kwargs) > 1:
+            try:
+                r = QRedis(**kwargs)
+                window.add_redis_panel(r, opts)
+            except Exception:
+                logging.exception("Failed to connect using CLI args")
+
     window.show()
     sys.exit(application.exec_())
 
