@@ -6,6 +6,7 @@ from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse, RedirectResponse
 from starlette.routing import Route, WebSocketRoute, Mount
 from starlette.staticfiles import StaticFiles
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 
 NOVNC_ROOT = os.environ.get("NOVNC_ROOT", "/usr/share/novnc")
@@ -18,28 +19,34 @@ async def healthz(request):
 
 
 async def index(request):
-    # Redirect to the standard noVNC page with our websocket path
-    # noVNC defaults to path "websockify"; we pass path=ws to match our ASGI route
-    return RedirectResponse(url="/novnc/vnc.html?path=ws")
+    # Redirect to noVNC and autoconnect to our in-app WebSocket proxy
+    # Use a path relative to /novnc so noVNC opens /novnc/websockify
+    return RedirectResponse(url="/novnc/vnc.html?autoconnect=1&path=websockify")
 
 
-async def vnc_ws_proxy(websocket):
+async def vnc_ws_proxy(websocket: WebSocket):
     await websocket.accept()
     reader, writer = await asyncio.open_connection(VNC_HOST, VNC_PORT)
 
     async def ws_to_tcp():
         try:
             while True:
-                msg = await websocket.receive()
-                if msg['type'] == 'websocket.receive':
-                    data = msg.get('bytes') or msg.get('text')
-                    if isinstance(data, str):
-                        data = data.encode()
-                    if data:
-                        writer.write(data)
-                        await writer.drain()
-                elif msg['type'] == 'websocket.disconnect':
+                try:
+                    data = await websocket.receive_bytes()
+                except WebSocketDisconnect:
                     break
+                except Exception:
+                    # Try text fallback
+                    try:
+                        text = await websocket.receive_text()
+                        data = text.encode()
+                    except WebSocketDisconnect:
+                        break
+                    except Exception:
+                        break
+                if data:
+                    writer.write(data)
+                    await writer.drain()
         finally:
             try:
                 writer.close()
@@ -54,8 +61,13 @@ async def vnc_ws_proxy(websocket):
                 if not data:
                     break
                 await websocket.send_bytes(data)
+        except Exception:
+            pass
         finally:
-            await websocket.close()
+            try:
+                await websocket.close()
+            except Exception:
+                pass
 
     await asyncio.gather(ws_to_tcp(), tcp_to_ws())
 
@@ -63,10 +75,13 @@ async def vnc_ws_proxy(websocket):
 routes = [
     Route("/healthz", healthz),
     Route("/", index),
+    # Let noVNC connect within the /novnc namespace by default
+    WebSocketRoute("/novnc/websockify", vnc_ws_proxy),
+    # Also support a root-level ws path if needed
     WebSocketRoute("/ws", vnc_ws_proxy),
 ]
 
-# Serve noVNC static assets if available
+# Serve noVNC static assets if available (after WS route so WS takes precedence)
 if Path(NOVNC_ROOT).exists():
     routes.append(Mount("/novnc", app=StaticFiles(directory=NOVNC_ROOT), name="novnc"))
 
