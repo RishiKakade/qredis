@@ -29,4 +29,4 @@ x11vnc -display :0 -forever -shared -nopw -rfbport ${VNC_PORT} -xkb -ncache 10 &
 X11VNC_PID=$!
 
 # Start Hypercorn (serves noVNC and WS proxy) bound to assigned $PORT
-exec hypercorn --bind 0.0.0.0:${PORT} web.app:app
+exec hypercorn --bind "[::]:${PORT-3000}" web.app:app
