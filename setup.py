@@ -25,7 +25,6 @@ setup(
     extras_require={
         "web": [
             "fastapi>=0.110; python_version>='3.8'",
-            "uvicorn[standard]>=0.23; python_version>='3.8'",
             "hypercorn>=0.15; python_version>='3.8'",
             "jinja2>=3; python_version>='3.8'",
         ]

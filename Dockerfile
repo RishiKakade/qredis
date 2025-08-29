@@ -9,9 +9,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install Python deps first (better build cache)
-COPY requirements-web.txt /tmp/requirements-web.txt
+COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r /tmp/requirements-web.txt
+    && pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copy only what we need (no PyQt5 installation required)
 COPY qredis_web /app/qredis_web

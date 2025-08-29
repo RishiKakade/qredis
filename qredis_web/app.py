@@ -7,7 +7,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-import uvicorn
+from hypercorn.config import Config as HypercornConfig
+from hypercorn.asyncio import serve as hypercorn_serve
+import asyncio
 
 from .redis import WebRedis
 
@@ -40,7 +42,7 @@ def health() -> Dict[str, str]:
 
 @app.on_event("startup")
 def _init_from_env() -> None:
-    """Optional lazy init for deployments that run `uvicorn qredis_web.app:app`.
+    """Optional lazy init for deployments that run an ASGI server (e.g., Hypercorn).
 
     Reads REDIS_URL (if present) and configures a WebRedis.
     """
@@ -186,9 +188,10 @@ def main() -> None:
     global _redis
     _redis = WebRedis(**kwargs)
 
-    # Start server
-    host, port_s = args.listen.split(":", 1)
-    uvicorn.run(app, host=host, port=int(port_s))
+    # Start server using Hypercorn
+    config = HypercornConfig()
+    config.bind = [args.listen]
+    asyncio.run(hypercorn_serve(app, config))
 
 
 if __name__ == "__main__":
