@@ -1,0 +1,7 @@
+fastapi>=0.110
+hypercorn>=0.15
+jinja2>=3
+redis>=5
+msgpack>=1.0.5
+msgpack-numpy>=0.4.8
+

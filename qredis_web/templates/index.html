@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QRedis Web</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>QRedis Web</h1>
+      <div id="connect-info"></div>
+    </header>
+    <main>
+      <aside>
+        <div class="search">
+          <input id="pattern" type="text" value="*" />
+          <button id="load">Load</button>
+        </div>
+        <ul id="keys"></ul>
+        <div class="pager">
+          <button id="prev" disabled>Prev</button>
+          <span id="cursor">0</span>
+          <button id="next" disabled>Next</button>
+        </div>
+      </aside>
+      <section id="editor">
+        <div id="meta">
+          <div>Key: <code id="meta-key"></code></div>
+          <div>Type: <span id="meta-type"></span></div>
+          <div>TTL: <input id="meta-ttl" type="number" value="-1" /></div>
+        </div>
+        <div id="value"></div>
+        <div id="actions">
+          <button id="save" disabled>Save</button>
+          <button id="delete" disabled>Delete</button>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

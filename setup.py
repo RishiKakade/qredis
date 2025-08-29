@@ -19,9 +19,17 @@ setup(
     author_email="coutinhotiago@gmail.com",
     url="https://github.com/tiagocoutinho/qredis",
     packages=find_packages(),
-    package_data={"qredis.images": ["*.png"], "qredis.ui": ["*.ui"]},
-    entry_points={"console_scripts": ["qredis=qredis.window:main"]},
+    package_data={"qredis.images": ["*.png"], "qredis.ui": ["*.ui"], "qredis_web": ["templates/*.html", "static/*"]},
+    entry_points={"console_scripts": ["qredis=qredis.window:main", "qredis-web=qredis_web.app:main"]},
     install_requires=requirements,
+    extras_require={
+        "web": [
+            "fastapi>=0.110; python_version>='3.8'",
+            "uvicorn[standard]>=0.23; python_version>='3.8'",
+            "hypercorn>=0.15; python_version>='3.8'",
+            "jinja2>=3; python_version>='3.8'",
+        ]
+    },
     keywords="redis,GUI,Qt",
     classifiers=[
         "Programming Language :: Python :: 3",

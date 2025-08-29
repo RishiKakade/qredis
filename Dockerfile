@@ -1,34 +1,24 @@
-# Railway deployment container for QRedis (PyQt) exposed over HTTPS via Hypercorn + noVNC
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
 
-# System deps for X11/Qt and VNC/noVNC
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    xvfb x11vnc novnc fluxbox \
-    libxkbcommon-x11-0 libxtst6 libxrender1 libxext6 libsm6 libgl1 libglib2.0-0 \
-    ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim AS runtime
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Create working directory
 WORKDIR /app
 
-# Install app and web deps
-COPY . /app
-# Install the project (Qt deps come via PyPI: PyQt5)
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir . && \
-    pip install --no-cache-dir starlette hypercorn
+# Install Python deps first (better build cache)
+COPY requirements-web.txt /tmp/requirements-web.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r /tmp/requirements-web.txt
 
-# Environment
-ENV PYTHONUNBUFFERED=1 \
-    DISPLAY=:0 \
-    VNC_PORT=5900 \
-    NOVNC_ROOT=/usr/share/novnc \
-    QT_QPA_PLATFORM=xcb
+# Copy only what we need (no PyQt5 installation required)
+COPY qredis_web /app/qredis_web
+COPY qredis /app/qredis
 
-# Copy entrypoint
-COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Expose default port used locally; Railway will set $PORT.
+EXPOSE 8080
 
-# Railway provides $PORT; Hypercorn will bind to it
-EXPOSE 8000
-
-CMD ["/entrypoint.sh"]
+# Start via Hypercorn with IPv6 bind using $PORT
+CMD ["python", "-m", "qredis_web.server"]
